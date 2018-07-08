@@ -23,15 +23,72 @@ $main_upload_url = "./uploads";
 $bin_dir = "$basedir/bin";
 $tmp_dir = "/tmp";
 $timelines = 6;
+$fadeDuration = 0.5;
 
 $today = date("F j, Y, g:i a");
 $dt = date("U");
 
 $in = array();
+$data = null;
 
 $in['step'] = 0;
 foreach ($_REQUEST as $k => $val) {
     $in[$k] = split_stitch::get_param($k);
+}
+
+echo "<pre>";
+echo var_dump($in);
+echo "</pre>";
+
+
+// processing video
+if (40 == $in['step']) {
+    $tempVideos = array();
+
+    for ($i = 0; $i < $in['parts']; $i++) {
+        echo "<font color=green>Split video to parts. Part $i </font><br>";
+        $rnd = rand(10000, 99999);
+        $tempOut = "${tmp_dir}/${dt}_${rnd}.ts";
+        $cmd = split_stitch::splitVideo($in['input'], $tempOut, $in['part'][$i]['start'], $in['part'][$i]['end']);
+        echo "$cmd\n";
+    }
+    exit(0);
+  }
+
+
+
+// check right data fr step 10
+if (30 == $in['step']) {
+    split_stitch::$messages[] = "Processing file '" . $in['input'] . "'";
+    echo split_stitch::showErrors();
+    echo split_stitch::showMessages();
+    if (!isset($in['output'])) {
+        $in['output'] = split_stitch::generateOutputFilename($in['input']);
+    }
+    echo "<h3>Please, enter output filename for stiched video</h3>
+<form action='index.php' method='post' multipart='' enctype='multipart/form-data'>
+<table>
+<tr>
+  <td><input type='text' name='output' value='" . $in['output'] . "' size=50></td>
+</tr>
+<tr>
+  <td>Overwrite if exists <input type='checkbox' name='overwrite' value='1' checked='cheched'> </td>
+</tr>
+<tr>
+  <td><input type='submit'  name='save' id='save' value='Go'> </td>
+</tr>
+</table>
+<input type='hidden'  name='step' id='step' value='40'>
+<input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
+<input type='hidden'  name='part' id='part' value='" . $in['part'] . "'>
+<input type='hidden'  name='parts' id='parts' value='" . $in['parts'] . "'>
+<input type='hidden'  name='part_order' id='part_order' value='" . $in['part_order'] . "'>
+
+</form>
+</body>
+</html>
+";
+    exit(0);
 }
 
 // check right data fr step 10
@@ -45,18 +102,18 @@ if (20 == $in['step']) {
     <tr>
       <td>
     ";
-    for ($k = 0; $k < $timelines; $k++) {
+    for ($k = 0; $k < $in['parts']; $k++) {
         if (!$in['part'][$k]['end']) {
             continue;
         }
         echo "<select name=part_order[$k]>";
-        for ($i = 0; $i < $timelines; $i++) {
+        for ($i = 0; $i < $in['parts']; $i++) {
             if (!$in['part'][$i]['end']) {
                 continue;
             }
-            $selected='';
-            if( $i==$k ) {
-              $selected='selected';
+            $selected = '';
+            if ($i == $k) {
+                $selected = 'selected';
             }
             echo "<option value=$i $selected>Part $i</option> ";
         }
@@ -72,9 +129,10 @@ if (20 == $in['step']) {
         <td><input type='submit'  name='save' id='save' value='Go'> </td>
       </tr>
   </table>
-  <input type='hidden'  name='step' id='step' value='20'>
-  <input type='hidden'  name='input' id='input' value='" . $in['input'] . " '>
-  <input type='hidden'  name='part' id='part' value='" . $in['part'] . " '>
+  <input type='hidden'  name='step' id='step' value='30'>
+  <input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
+  <input type='hidden'  name='part' id='part' value='" . $in['part'] . "'>
+  <input type='hidden'  name='parts' id='parts' value='" . $in['parts'] . "'>
   </form>
 </body>
 </html>
@@ -82,25 +140,6 @@ if (20 == $in['step']) {
     exit(0);
 }
 
-
-$data = null;
-// check right data fr step 10
-if (10 == $in['step']) {
-    if (!file_exists($in['input'])) {
-        split_stitch::$errors[] = "File " . $in['input'] . "do not exists.";
-        $in['step'] = 0;
-    }
-    if (!split_stitch::getStreamInfo($in['input'], 'video', $data)) {
-        split_stitch::$errors[] = "Sommething wrong with file " . $in['input'] . " . Cannot get info about video stream in this file.";
-        $in['step'] = 0;
-    }
-    if (!isset($data['duration']) || 0 == $data['duration']) {
-        split_stitch::$errors[] = "Sommething wrong with file " . $in['input'] . " . Cannot get duration of video stream in file.";
-        $in['step'] = 0;
-    }
-}
-
-$data = null;
 // check right data fr step 10
 if (10 == $in['step']) {
     if (!file_exists($in['input'])) {
@@ -130,9 +169,9 @@ if (10 == $in['step']) {
           <td>End</td>
         </tr>
         ";
-    for ($i = 0; $i < $timelines; $i++) {
-        $start = round(($i) * $data['duration'] / $timelines, 1);
-        $end = round(($i + 1) * $data['duration'] / $timelines, 1);
+    for ($i = 0; $i < $in['parts']; $i++) {
+        $start = round(($i) * $data['duration'] / $in['parts'], 1);
+        $end = round(($i + 1) * $data['duration'] / $in['parts'], 1);
         echo "
           <tr>
             <td>Part $i</td>
@@ -147,17 +186,55 @@ if (10 == $in['step']) {
     }
     echo "
           <tr>
-            <td></td>
-            <td></td>
             <td><input type='submit'  name='save' id='save' value='Go'> </td>
+            <td></td>
+            <td></td>
           </tr>
 			</table>
 			<input type='hidden'  name='step' id='step' value='20'>
-			<input type='hidden'  name='input' id='input' value='" . $in['input'] . " '>
+			<input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
+			<input type='hidden'  name='parts' id='parts' value='" . $in['parts'] . "'>
 			</form>
 		</body>
 	</html>
 	";
+    exit(0);
+}
+
+// check right data for step 5
+// add parts
+if (5 == $in['step']) {
+    if (!file_exists($in['input'])) {
+        split_stitch::$errors[] = "File " . $in['input'] . "do not exists.";
+        $in['step'] = 0;
+    }
+}
+
+if (5 == $in['step']) {
+    split_stitch::$messages[] = "Processing file '" . $in['input'] . "'";
+    echo split_stitch::showErrors();
+    echo split_stitch::showMessages();
+    echo "<h3>Please, enter how many parts you will split</h3>
+  <form action='index.php' method='post' multipart='' enctype='multipart/form-data'>
+  <table>
+
+      <tr>
+        <td>Parts</td>
+        <td>
+          <input type='number'  step=1 name='parts' id='parts' value='2' min=2 max=$timelines>
+        </td>
+      </tr>
+      <tr>
+        <td><input type='submit'  name='save' id='save' value='Go'> </td>
+        <td></td>
+      </tr>
+  </table>
+  <input type='hidden'  name='step' id='step' value='10'>
+  <input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
+  </form>
+</body>
+</html>
+";
     exit(0);
 }
 
@@ -172,123 +249,19 @@ if (!$in['step']) {
 			<form action='index.php' method='post' multipart='' enctype='multipart/form-data'>
 			<table>
 			<tr>
-				<td><input type='text' name='input' value='" . $in['input'] . "' size=50></td>
+        <td><input type='text' name='input' value='" . $in['input'] . "' size=50></td>
+      </tr>
+      <tr>
 				<td><input type='submit'  name='save' id='save' value='Go'> </td>
 			</tr>
 			</table>
-			<input type='hidden'  name='step' id='step' value='10'>
+			<input type='hidden'  name='step' id='step' value='5'>
 			</form>
 		</body>
 	</html>
 	";
     exit(0);
 }
-
-if (split_stitch::get_param('new')) {
-    echo "<h3>Add new project</h3>
-			<form action='index.php' method='post' multipart='' enctype='multipart/form-data'>
-			<table>
-			<tr>
-				<td><input type='text' name='project_name' value='New project $today' size=50></td>
-				<td><input type='submit'  name='save' id='save' value='Save'> </td>
-
-			</tr>
-			</table>
-			<input type='hidden'  name='add' id='add' value='1'>
-			</form>
-		</body>
-	</html>
-	";
-    exit(0);
-}
-
-if (split_stitch::get_param('add')) {
-    $project = array();
-    $project_name = split_stitch::get_param('project_name');
-    $project_id = $dt . sha1($project_name . $today);
-    $project['project_name'] = $project_name;
-    $project['project_id'] = $project_id;
-    $project['main_upload_dir'] = $main_upload_dir;
-
-    if (!mkdir("$main_upload_dir/$project_id", 0777, true)) {
-        echo "<h2><font color=red>Error! Cannot make the directory $main_upload_dir/$project_id</font></h2>";
-        exit(0);
-    }
-    $myfile = fopen("$main_upload_dir/$project_id/project.txt", "w");
-    if (!$myfile) {
-        "<h2><font color=red>Error! Unable to save file $main_upload_dir/$project_id/project.txt</font></h2>";
-        exit(0);
-    }
-    fwrite($myfile, json_encode($project));
-    fclose($myfile);
-
-    echo "<h3>Project '$project_name' created</h3>
-			<form action='upload_images.php' method='post' multipart='' enctype='multipart/form-data'>
-			<table>
-			<tr>
-				<td><input type='submit'  name='save' id='save' value='Add images to project'> </td>
-			</tr>
-			</table>
-			<input type='hidden' name='project_id' value='$project_id'>
-			</form>
-		</body>
-	</html>
-	";
-    // renew the fonts list
-    $command = "find /usr/share/fonts/truetype/ |grep ttf\$ >$main_upload_dir/fonts.txt 2>/dev/null";
-    #$command="convert -list font | awk '/Font:/ {print $2}' >$basedir/fonts.txt 2>/dev/null";
-    exec($command);
-    exit(0);
-}
-
-if (split_stitch::get_param('del') && split_stitch::get_param('project_id')) {
-    $project_id = split_stitch::get_param('project_id');
-    if (file_exists("$main_upload_dir/$project_id/project.txt")) {
-        exec("rm -rf $main_upload_dir/$project_id");
-        echo "<h2><font color=green>Project with id '$project_id' removed</font></h2>";
-    } else {
-        echo "<h2><font color=red>Error! Cannot remove the project '$project_id'</font></h2>";
-    }
-}
-
-echo '
-			<table>
-			<tr>
-				<td bgcolor=#FDF2FF><a href="index.php?new=1">Add new project</a></td>
-				<td></td>
-				<td></td>
-			</tr>
-
-		';
-$Dirs = scandir($main_upload_dir, SCANDIR_SORT_DESCENDING);
-/*        echo '<pre>';
-echo var_dump($Dirs );
-echo '</pre>';
-echo '<pre>';
-echo var_dump($dir );
-echo '</pre>';
- */
-foreach ($Dirs as $dir) {
-    if (file_exists("$main_upload_dir/$dir/project.txt")) {
-        $string = file_get_contents("$main_upload_dir/$dir/project.txt");
-        $project = json_decode($string, true);
-        $project_name = $project['project_name'];
-        $project_id = $project['project_id'];
-
-        echo "	<tr>
-							<td><a href='edit_effect.php?project_id=$project_id'>$project_name</a></td>
-							<td>[ <a href='clone_project.php?old_project_id=$project_id'> Clone this project</a> ]</td>
-							<td>[ <a href='' onclick=\"confirm_prompt( 'Are you sure to remove this project?','?del=1&project_id=$project_id'); return false;\">Remove this project</a> ]</td>
-						</tr>\n";
-    }
-}
-echo '
-				</form>
-			</table>
-
-		</body>
-	</html>
-';
 
 ?>
 

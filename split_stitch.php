@@ -4,6 +4,7 @@ class split_stitch
 
     public static $ffmpeg = "ffmpeg";
     public static $ffprobe = "ffprobe";
+    public static $ffmpegLogLevel = 'info';
     public static $errors = array();
     public static $messages = array();
 
@@ -140,6 +141,51 @@ class split_stitch
             return 0;
         }
         return 1;
+    }
+
+    public function generateOutputFilename($filename)
+    {
+        $path_parts = pathinfo($filename);
+        $dir = $path_parts['dirname'];
+        $file = $path_parts['filename'];
+        $ext = $path_parts['extension'];
+        $date = date("U");
+        return ("$dir/${file}_${date}.${ext}");
+    }
+
+/**
+ * accurateSplitVideo
+ * cut video part
+ *
+ * @param string   $input
+ * @param string   $output
+ * @param string   $start
+ * @param string   $end
+ * @return string  Command ffmpeg
+ */
+
+    public function splitVideo(
+        $input,
+        $output,
+        $start,
+        $end
+    ) {
+        $ffmpeg = self::$ffmpeg;
+        $ffmpegLogLevel = self::$ffmpegLogLevel;
+        $videoOutSettingsString = "";
+        $audioOutSettingsString = "";
+
+        //$duration = $end - $start;
+
+        $cmd = join(" ", [
+            "$ffmpeg -loglevel $ffmpegLogLevel  -y  ",
+            " -i $input -ss $start -to $end ",
+            " -filter_complex \" ",
+            " setpts=PTS-STARTPTS [v]; asetpts=PTS-STARTPTS [a] \" ",
+            " -map \"[v]\" -map \"[a]\" -c:v h264 -crf 18 -preset veryfast -f mpegts $output",
+        ]
+        );
+        return $cmd;
     }
 
 }
