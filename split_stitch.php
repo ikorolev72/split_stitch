@@ -154,7 +154,51 @@ class split_stitch
     }
 
 /**
- * accurateSplitVideo
+ * splitVideoFade
+ * cut video part
+ *
+ * @param string   $input
+ * @param string   $output
+ * @param string   $start
+ * @param string   $end
+ * @return string  Command ffmpeg
+ */
+
+    public function splitVideoFade(
+        $input,
+        $output,
+        $start,
+        $end,
+        $fadeIn,
+        $fadeOut,
+        $fadeDuration
+    ) {
+        $ffmpeg = self::$ffmpeg;
+        $ffmpegLogLevel = self::$ffmpegLogLevel;
+        //$duration = $end - $start;
+        $fadeOutStart = self::time2float($end) - self::time2float($start) - $fadeDuration;
+
+        $fadeInFilter = "null";
+        $fadeOutFilter = "null";
+        if ($fadeIn) {
+            $fadeInFilter = "fade=in:st=0:d=$fadeDuration";
+        }
+        if ($fadeOut) {
+            $fadeOutFilter = "fade=out:st=$fadeOutStart:d=$fadeDuration";
+        }
+        $cmd = join(" ", [
+            "$ffmpeg -loglevel $ffmpegLogLevel  -y  ",
+            " -i $input -ss $start -to $end ",
+            " -filter_complex \" ",
+            " setpts=PTS-STARTPTS, $fadeInFilter, $fadeOutFilter [v]; asetpts=PTS-STARTPTS [a] \" ",
+            " -map \"[v]\" -map \"[a]\" -c:v h264 -crf 18 -preset veryfast -f mpegts $output",
+        ]
+        );
+        return $cmd;
+    }
+
+/**
+ * splitVideo
  * cut video part
  *
  * @param string   $input
@@ -172,9 +216,6 @@ class split_stitch
     ) {
         $ffmpeg = self::$ffmpeg;
         $ffmpegLogLevel = self::$ffmpegLogLevel;
-        $videoOutSettingsString = "";
-        $audioOutSettingsString = "";
-
         //$duration = $end - $start;
 
         $cmd = join(" ", [
@@ -186,6 +227,68 @@ class split_stitch
         ]
         );
         return $cmd;
+    }
+
+/**
+ * stitchVideo
+ * stitch video part
+ *
+ * @param array    $input
+ * @param string   $output
+ * @return string  Command ffmpeg
+ */
+
+    public function stitchVideo(
+        $input,
+        $output
+    ) {
+        $ffmpeg = self::$ffmpeg;
+        $ffmpegLogLevel = self::$ffmpegLogLevel;
+
+        //$duration = $end - $start;
+
+        $cmd = join(" ", [
+            "$ffmpeg -loglevel $ffmpegLogLevel  -y  ",
+            " -i \"concat:" . join('|', $input) . "\"",
+            " -c:v copy -c:a copy -f mp4 $output",
+        ]
+        );
+        return $cmd;
+    }
+
+/**
+ * time2float
+ * this function translate time in format 00:00:00.00 to seconds
+ *
+ * @param    string $t
+ * @return    float
+ */
+
+    public function time2float($t)
+    {
+        $matches = preg_split("/:/", $t, 3);
+        if (array_key_exists(2, $matches)) {
+            list($h, $m, $s) = $matches;
+            return ($s + 60 * $m + 3600 * $h);
+        }
+        $h = 0;
+        list($m, $s) = $matches;
+        return ($s + 60 * $m);
+    }
+
+/**
+ * float2time
+ * this function translate time from seconds to format 00:00:00.00
+ *
+ * @param    float $i
+ * @return    string
+ */
+    public function float2time($i)
+    {
+        $h = intval($i / 3600);
+        $m = intval(($i - 3600 * $h) / 60);
+        $s = $i - 60 * floatval($m) - 3600 * floatval($h);
+        return sprintf("%01d:%02d:%05.2f", $h, $m, $s);
     }
 
 }

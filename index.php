@@ -10,6 +10,20 @@
       window.location = url ;
     }
   }
+
+function checkTime(t) {
+  let re = /^(\d\d):(\d\d):(\d\d(\.\d*)?)$/;
+  if (re.test(t)) {    
+    return (true);
+  }
+  re = /^(\d\d):(\d\d(\.\d*)?)$/;
+  if (re.test(t)) {
+    return (true);
+  }
+  return (false);
+}
+
+
 </script>
 </head>
 <body>
@@ -17,6 +31,7 @@
 <?php
 include_once "split_stitch.php";
 
+$debug = true;
 $basedir = dirname(__FILE__);
 $main_upload_dir = "$basedir/uploads/";
 $main_upload_url = "./uploads";
@@ -31,31 +46,105 @@ $dt = date("U");
 $in = array();
 $data = null;
 
-$in['step'] = 0;
-foreach ($_REQUEST as $k => $val) {
-    $in[$k] = split_stitch::get_param($k);
+$json_in = split_stitch::get_param('in');
+if ($json_in) {
+    $in = json_decode($json_in, true);
+    if (!$in) {
+        split_stitch::$errors[] = "Incorrect json string in parameter 'in'";
+        echo split_stitch::showErrors();
+        echo split_stitch::showMessages();
+        exit(1);
+    }
+} else {
+    $in = array();
+    $in['step'] = 0;
 }
 
-echo "<pre>";
-echo var_dump($in);
-echo "</pre>";
+foreach ($_REQUEST as $k => $val) {
+    if ('in' == $k) {
+        continue;
+    }
 
+    $in[$k] = split_stitch::get_param($k);
+}
+if ($debug) {
+    echo "<pre>";
+    echo var_dump($in);
+    echo "</pre>";
+}
+
+$string = json_encode($in, JSON_PRETTY_PRINT);
 
 // processing video
 if (40 == $in['step']) {
     $tempVideos = array();
 
-    for ($i = 0; $i < $in['parts']; $i++) {
-        echo "<font color=green>Split video to parts. Part $i </font><br>";
+    for ($k = 0; $k < $in['parts']; $k++) {
+        $index = $in['part_order'][$k];
+        echo "<font color=green>Split video to parts. Part $k </font><br>";
+        flush();
+        ob_flush();
         $rnd = rand(10000, 99999);
+        $tempLog = "${tmp_dir}/${dt}_${rnd}.log";
+
         $tempOut = "${tmp_dir}/${dt}_${rnd}.ts";
-        $cmd = split_stitch::splitVideo($in['input'], $tempOut, $in['part'][$i]['start'], $in['part'][$i]['end']);
-        echo "$cmd\n";
+        $tempVideos[] = $tempOut;
+        $fadeIn=true;
+        $fadeOut=true;
+        if( 0==$k ) {
+          $fadeIn=false;
+        }
+        if( $in['parts']==($k+1) ) {
+          $fadeOut=false;
+        }
+
+//        $cmd = split_stitch::splitVideo($in['input'], $tempOut, $in['part'][$index]['start'], $in['part'][$index]['end']) . " >$tempLog 2>&1";
+        $cmd = split_stitch::splitVideoFade($in['input'], $tempOut, $in['part'][$index]['start'], $in['part'][$index]['end'], $fadeIn, $fadeOut, $fadeDuration) . " >$tempLog 2>&1";
+        if ($debug) {
+            echo "$cmd<br>";
+        }
+        if (!split_stitch::doExec($cmd)) {
+            split_stitch::$errors[] = "Fatal error. Something wrong while doing command: $cmd . Please, check log file $tempLog";
+            echo split_stitch::showErrors();
+            exit(1);
+        }
+        unlink($tempLog);
     }
+
+    // stitch videos
+    echo "<font color=green>Stitch videos into entire video</font><br>";
+    flush();
+    ob_flush();
+
+    $rnd = rand(10000, 99999);
+    $tempLog = "${tmp_dir}/${dt}_${rnd}.log";
+    $tempOut = "${tmp_dir}/${dt}_${rnd}.mp4";
+    $cmd = split_stitch::stitchVideo($tempVideos, $tempOut) . " >$tempLog 2>&1";
+    if ($debug) {
+        echo "$cmd<br>";
+    }
+    if (!split_stitch::doExec($cmd)) {
+        split_stitch::$errors[] = "Fatal error. Something wrong while doing command: $cmd . Please, check log file $tempLog";
+        echo split_stitch::showErrors();
+        exit(1);
+    }
+    // unlink temp files
+    foreach ($tempVideos as $filename) {
+        @unlink($filename);
+    }
+
+    if (@rename($tempOut, $in['output'])) {
+        split_stitch::$messages[] = "Congratulation! All ok! Your video file: " . $in['output'];
+        @unlink($tempOut);
+
+    } else {
+        split_stitch::$messages[] = "Congratulation! Your video file: $tempOut";
+        split_stitch::$errors[] = "Your file is ready, but I cannot reaname temporary video file to output filename";
+    }
+    echo split_stitch::showErrors();
+    echo split_stitch::showMessages();
     exit(0);
-  }
-
-
+}
 
 // check right data fr step 10
 if (30 == $in['step']) {
@@ -79,11 +168,7 @@ if (30 == $in['step']) {
 </tr>
 </table>
 <input type='hidden'  name='step' id='step' value='40'>
-<input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
-<input type='hidden'  name='part' id='part' value='" . $in['part'] . "'>
-<input type='hidden'  name='parts' id='parts' value='" . $in['parts'] . "'>
-<input type='hidden'  name='part_order' id='part_order' value='" . $in['part_order'] . "'>
-
+<input type='hidden'  name='in' id='in' value='$string'>
 </form>
 </body>
 </html>
@@ -130,9 +215,7 @@ if (20 == $in['step']) {
       </tr>
   </table>
   <input type='hidden'  name='step' id='step' value='30'>
-  <input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
-  <input type='hidden'  name='part' id='part' value='" . $in['part'] . "'>
-  <input type='hidden'  name='parts' id='parts' value='" . $in['parts'] . "'>
+  <input type='hidden'  name='in' id='in' value='$string'>
   </form>
 </body>
 </html>
@@ -192,8 +275,7 @@ if (10 == $in['step']) {
           </tr>
 			</table>
 			<input type='hidden'  name='step' id='step' value='20'>
-			<input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
-			<input type='hidden'  name='parts' id='parts' value='" . $in['parts'] . "'>
+      <input type='hidden'  name='in' id='in' value='$string'>
 			</form>
 		</body>
 	</html>
@@ -230,7 +312,7 @@ if (5 == $in['step']) {
       </tr>
   </table>
   <input type='hidden'  name='step' id='step' value='10'>
-  <input type='hidden'  name='input' id='input' value='" . $in['input'] . "'>
+  <input type='hidden'  name='in' id='in' value='$string'>
   </form>
 </body>
 </html>
