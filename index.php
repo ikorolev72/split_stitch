@@ -1,8 +1,18 @@
+<?php
+/*
+Split and stitch video
+Author Korolev Igor
+https://github.com/ikorolev72
+2018.07.08
+version 1.0
+*/
+?>
+
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Project list</title>
+    <title>Split and stitch video</title>
 	<LINK href='main.css' type=text/css rel=stylesheet>
 <script>
   function confirm_prompt( text,url ) {
@@ -13,13 +23,14 @@
 
 function checkTime(t) {
   let re = /^(\d\d):(\d\d):(\d\d(\.\d*)?)$/;
-  if (re.test(t)) {    
+  if (re.test(t)) {
     return (true);
   }
   re = /^(\d\d):(\d\d(\.\d*)?)$/;
   if (re.test(t)) {
     return (true);
   }
+  alert( "incorrect time value "+t+ ".  Must be in [HH:]MM:SS[.m...] format. Eg 00:00:15.02")
   return (false);
 }
 
@@ -27,11 +38,17 @@ function checkTime(t) {
 </script>
 </head>
 <body>
-<h2>Projects</h2>
+
 <?php
+echo "
+<a href=".$_SERVER['PHP_SELF']."> Home </a>
+<h2>Split and stitch video</h2> 
+";
+
 include_once "split_stitch.php";
 
-$debug = true;
+//$debug = true;
+$debug = false;
 $basedir = dirname(__FILE__);
 $main_upload_dir = "$basedir/uploads/";
 $main_upload_url = "./uploads";
@@ -89,13 +106,13 @@ if (40 == $in['step']) {
 
         $tempOut = "${tmp_dir}/${dt}_${rnd}.ts";
         $tempVideos[] = $tempOut;
-        $fadeIn=true;
-        $fadeOut=true;
-        if( 0==$k ) {
-          $fadeIn=false;
+        $fadeIn = true;
+        $fadeOut = true;
+        if (0 == $k) {
+            $fadeIn = false;
         }
-        if( $in['parts']==($k+1) ) {
-          $fadeOut=false;
+        if ($in['parts'] == ($k + 1)) {
+            $fadeOut = false;
         }
 
 //        $cmd = split_stitch::splitVideo($in['input'], $tempOut, $in['part'][$index]['start'], $in['part'][$index]['end']) . " >$tempLog 2>&1";
@@ -108,7 +125,7 @@ if (40 == $in['step']) {
             echo split_stitch::showErrors();
             exit(1);
         }
-        unlink($tempLog);
+        @unlink($tempLog);
     }
 
     // stitch videos
@@ -133,13 +150,20 @@ if (40 == $in['step']) {
         @unlink($filename);
     }
 
+    if (file_exists($in['output'])) {
+        if (isset($in['overwrite']) && $in['overwrite']) {
+            $rnd = rand(10000, 99999);
+            $in['output'] = $in['output'] . "_${rnd}.mp4";
+        }
+    }
     if (@rename($tempOut, $in['output'])) {
         split_stitch::$messages[] = "Congratulation! All ok! Your video file: " . $in['output'];
         @unlink($tempOut);
-
+        @unlink($tempLog);
     } else {
         split_stitch::$messages[] = "Congratulation! Your video file: $tempOut";
         split_stitch::$errors[] = "Your file is ready, but I cannot reaname temporary video file to output filename";
+        @unlink($tempLog);
     }
     echo split_stitch::showErrors();
     echo split_stitch::showMessages();
@@ -243,7 +267,7 @@ if (10 == $in['step']) {
     split_stitch::$messages[] = "Processing file '" . $in['input'] . "'";
     echo split_stitch::showErrors();
     echo split_stitch::showMessages();
-    echo "<h3>Please, enter split timelines ( in second ). If you wish ignore one or several parts, please, set end value to 0 (zero)</h3>
+    echo "<h3>Please, enter split timelines ( format [HH:]MM:SS[.m...])</h3>
 			<form action='index.php' method='post' multipart='' enctype='multipart/form-data'>
       <table>
         <tr>
@@ -253,17 +277,26 @@ if (10 == $in['step']) {
         </tr>
         ";
     for ($i = 0; $i < $in['parts']; $i++) {
-        $start = round(($i) * $data['duration'] / $in['parts'], 1);
-        $end = round(($i + 1) * $data['duration'] / $in['parts'], 1);
+        $start = split_stitch::float2time(($i) * $data['duration'] / $in['parts'], 1);
+        $end = split_stitch::float2time(($i + 1) * $data['duration'] / $in['parts'], 1);
+
         echo "
           <tr>
             <td>Part $i</td>
+            <td>
+              <input type='text' name='part[$i][start]' id='part[$i][start]' value='$start' onchange='checkTime(this.value)' >
+            </td>
+            <td>
+              <input type='text' name='part[$i][end]' id='part[$i][end]' value='$end'  onchange='checkTime(this.value)'>
+            </td>
+<!--
             <td>
               <input type='number'  step=0.1 name='part[$i][start]' id='part[$i][start]' value='$start' min=0 max=" . $data['duration'] . ">
             </td>
             <td>
               <input type='number'  step=0.1 name='part[$i][end]' id='part[$i][end]' value='$end' min=0 max=" . $data['duration'] . ">
             </td>
+-->
           </tr>
         ";
     }

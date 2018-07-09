@@ -1,4 +1,12 @@
 <?php
+/*
+Split and stitch video
+Author Korolev Igor
+https://github.com/ikorolev72
+2018.07.08
+version 1.0
+*/
+
 class split_stitch
 {
 
@@ -8,19 +16,19 @@ class split_stitch
     public static $errors = array();
     public static $messages = array();
 
-    public function showErrors()
+    public static function showErrors()
     {
         $menu = "<font color='red'>" . join("<br>", self::$errors) . "</font><hr>";
         return $menu;
     }
 
-    public function showMessages()
+    public static function showMessages()
     {
         $menu = "<font color='green'>" . join("<br>", self::$messages) . "</font><hr>";
         return $menu;
     }
 
-    public function reArrayFiles($file)
+    public static function reArrayFiles($file)
     {
         $file_ary = array();
         $file_count = count($file['name']);
@@ -34,7 +42,7 @@ class split_stitch
         return $file_ary;
     }
 
-    public function get_param($val)
+    public static function get_param($val)
     {
         global $_POST;
         global $_GET;
@@ -43,7 +51,7 @@ class split_stitch
         return $ret;
     }
 
-    public function copy_files($src, $dst, $allowed)
+    public static function copy_files($src, $dst, $allowed)
     {
         $dir = opendir($src);
         #@mkdir($dst);
@@ -58,7 +66,7 @@ class split_stitch
         return true;
     }
 
-    public function save_settings($item, $keys)
+    public static function save_settings($item, $keys)
     {
         $saved_values = array();
         foreach ($keys as $k) {
@@ -79,7 +87,7 @@ class split_stitch
  * @param    array &$data          return data
  * @return    integer 1 for success, 0 for any error
  */
-    public function getStreamInfo($fileName, $streamType, &$data)
+    public static function getStreamInfo($fileName, $streamType, &$data)
     {
         # parameter - 'audio' or 'video'
         $ffprobe = self::$ffprobe;
@@ -120,10 +128,10 @@ class split_stitch
  * @param    string $message
  * @return    string
  */
-    public function writeToLog($message)
+    public static function writeToLog($message)
     {
-        #echo "$message\n";
-        fwrite(STDERR, "$message\n");
+        echo "$message\n";
+        #fwrite(STDERR, "$message\n");
     }
 
 /**
@@ -132,7 +140,7 @@ class split_stitch
  * @return integer 0-error, 1-success
  */
 
-    public function doExec($Command)
+    public static function doExec($Command)
     {
         $outputArray = array();
         exec($Command, $outputArray, $execResult);
@@ -143,7 +151,7 @@ class split_stitch
         return 1;
     }
 
-    public function generateOutputFilename($filename)
+    public static function generateOutputFilename($filename)
     {
         $path_parts = pathinfo($filename);
         $dir = $path_parts['dirname'];
@@ -164,7 +172,7 @@ class split_stitch
  * @return string  Command ffmpeg
  */
 
-    public function splitVideoFade(
+    public static function splitVideoFade(
         $input,
         $output,
         $start,
@@ -176,12 +184,14 @@ class split_stitch
         $ffmpeg = self::$ffmpeg;
         $ffmpegLogLevel = self::$ffmpegLogLevel;
         //$duration = $end - $start;
-        $fadeOutStart = self::time2float($end) - self::time2float($start) - $fadeDuration;
-
+        //$fadeOutStart = self::time2float($end) - self::time2float($start) - $fadeDuration;
+        $begin = self::time2float($start);
+        $finish = self::time2float($end);
+        $fadeOutStart = $finish - $fadeDuration;
         $fadeInFilter = "null";
         $fadeOutFilter = "null";
         if ($fadeIn) {
-            $fadeInFilter = "fade=in:st=0:d=$fadeDuration";
+            $fadeInFilter = "fade=in:st=$begin:d=$fadeDuration";
         }
         if ($fadeOut) {
             $fadeOutFilter = "fade=out:st=$fadeOutStart:d=$fadeDuration";
@@ -208,7 +218,7 @@ class split_stitch
  * @return string  Command ffmpeg
  */
 
-    public function splitVideo(
+    public static function splitVideo(
         $input,
         $output,
         $start,
@@ -238,7 +248,7 @@ class split_stitch
  * @return string  Command ffmpeg
  */
 
-    public function stitchVideo(
+    public static function stitchVideo(
         $input,
         $output
     ) {
@@ -264,7 +274,7 @@ class split_stitch
  * @return    float
  */
 
-    public function time2float($t)
+    public static function time2float($t)
     {
         $matches = preg_split("/:/", $t, 3);
         if (array_key_exists(2, $matches)) {
@@ -288,7 +298,7 @@ class split_stitch
         $h = intval($i / 3600);
         $m = intval(($i - 3600 * $h) / 60);
         $s = $i - 60 * floatval($m) - 3600 * floatval($h);
-        return sprintf("%01d:%02d:%05.2f", $h, $m, $s);
+        return sprintf("%02d:%02d:%05.2f", $h, $m, $s);
     }
 
 }
